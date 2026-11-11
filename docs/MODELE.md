@@ -1,261 +1,215 @@
-# Modèle de Données — Réseau de Médiathèques
+# Modèle de données — Réseau de médiathèques
 
-Ce document décrit la structure de la base de données et la modélisation conceptuelle du domaine pour le projet de gestion de réseau de médiathèques (Symfony 7.4 / MySQL 8).
+**Projet** : PFE Challenge EMC, Sujet 4
+**Auteur** : Amine Nekhla
+**Date** : 11 novembre 2026
 
----
+Ce document est la référence pour les entités Doctrine. Les noms (entités, statuts, rôles) sont identiques à ceux de `docs/DECISIONS.md`.
 
-## 1. Vue d'ensemble de l'architecture métier
-
-La modélisation s'appuie sur le standard bibliothéconomique **FRBR (Functional Requirements for Bibliographic Records)** adapté aux contraintes opérationnelles d'un réseau multi-sites :
-
-1. **Œuvre** : L'abstraction intellectuelle (ex. *Le Petit Prince* d'Antoine de Saint-Exupéry).
-2. **Édition** : La manifestation concrète / publication commerciale (ex. Folio Junior 2015, format poche, ISBN distinct).
-3. **Exemplaire** : L'objet physique inventorié avec un code-barres / une cote, localisé dans l'un des deux sites physiques, disposant d'un état d'usure et d'un cycle de disponibilité.
-4. **Circulation & Usagers** : Gestion des adhérents, abonnements, prêts, réservations en file d'attente, transferts inter-sites et pénalités.
-
----
-
-## 2. Diagramme des Entités (ERD)
+## 1. Diagramme
 
 ```mermaid
 erDiagram
-    SITE ||--o{ EXEMPLAIRE : "abrite"
-    SITE ||--o{ TRANSFERT : "source / destination"
-    SITE ||--o{ RESERVATION : "site de retrait"
-    
-    OEUVRE ||--o{ CONTRIBUTION : "comporte"
-    PERSONNE ||--o{ CONTRIBUTION : "participe via"
-    OEUVRE ||--o{ EDITION : "se décline en"
-    
-    EDITION ||--o{ EXEMPLAIRE : "matérialisée par"
-    EDITION ||--o{ RESERVATION : "fait l'objet de"
-    
-    FORMULE_ABONNEMENT ||--o{ ADHERENT : "cadre"
+    SITE ||--o{ EXEMPLAIRE : "site_attache"
+    SITE ||--o{ EXEMPLAIRE : "site_actuel"
+    SITE ||--o{ ADHERENT : "site_inscription"
+    SITE ||--o{ RESERVATION : "site_retrait"
+    SITE ||--o{ TRANSFERT : "origine / destination"
+
+    OEUVRE ||--o{ EDITION : "possede"
+    EDITION ||--o{ EXEMPLAIRE : "possede"
+    OEUVRE ||--o{ CONTRIBUTION : "credite"
+    EDITION ||--o{ CONTRIBUTION : "credite"
+    PERSONNE ||--o{ CONTRIBUTION : "participe"
+
+    FORMULE_ABONNEMENT ||--o{ ADHERENT : "souscrit"
+    UTILISATEUR ||--o| ADHERENT : "a pour profil"
+
     ADHERENT ||--o{ PRET : "emprunte"
-    ADHERENT ||--o{ RESERVATION : "réserve"
-    ADHERENT ||--o{ PENALITE : "reçoit"
-    
-    EXEMPLAIRE ||--o{ PRET : "est prêté via"
-    EXEMPLAIRE ||--o{ TRANSFERT : "est transféré via"
-    
-    PRET ||--o| PENALITE : "génère potentiellement"
+    EXEMPLAIRE ||--o{ PRET : "est prete"
+    ADHERENT ||--o{ RESERVATION : "reserve"
+    OEUVRE ||--o{ RESERVATION : "est reservee"
+    EDITION |o--o{ RESERVATION : "edition souhaitee (optionnel)"
+    EXEMPLAIRE |o--o{ RESERVATION : "exemplaire mis de cote"
+    EXEMPLAIRE ||--o{ TRANSFERT : "est transfere"
+    RESERVATION |o--o{ TRANSFERT : "declenche"
+    ADHERENT ||--o{ PENALITE : "doit"
+    PRET ||--o{ PENALITE : "genere"
 
     SITE {
         int id PK
-        string nom
-        string code
+        string nom UK
         string adresse
-        string telephone
     }
-
     OEUVRE {
         int id PK
         string titre
-        text description
-        string type_document
-        int annee_creation
+        string langue_originale
+        int annee_premiere_publication
+        text resume
     }
-
+    EDITION {
+        int id PK
+        int oeuvre_id FK
+        string isbn UK "nullable"
+        enum type_document "LIVRE, BD, DVD"
+        string editeur
+        string langue
+        int annee_publication
+        int nombre_pages "nullable"
+        string url_couverture "nullable"
+        enum source "MANUELLE, OPEN_LIBRARY"
+        bool a_verifier
+    }
     PERSONNE {
         int id PK
         string nom
         string prenom
-        string nationalite
+        string nationalite "nullable"
+        text biographie "nullable"
     }
-
     CONTRIBUTION {
         int id PK
-        int oeuvre_id FK
         int personne_id FK
-        string role
+        int oeuvre_id FK "nullable"
+        int edition_id FK "nullable"
+        enum role "AUTEUR, ILLUSTRATEUR, SCENARISTE, DESSINATEUR, COLORISTE, TRADUCTEUR, PREFACIER, REALISATEUR, ACTEUR"
     }
-
-    EDITION {
-        int id PK
-        int oeuvre_id FK
-        string isbn UK
-        string editeur
-        date date_publication
-        int nombre_pages
-        string langue
-        string format
-        string url_couverture
-    }
-
     EXEMPLAIRE {
         int id PK
         int edition_id FK
+        int site_attache_id FK
         int site_actuel_id FK
-        string code_barre UK
-        string cote
-        string etat_physique
-        string statut_disponibilite
-        datetime date_acquisition
+        string code_barres UK
+        enum statut "DISPONIBLE, EMPRUNTE, RESERVE, EN_TRANSIT, PERDU, ABIME, RETIRE"
+        int version "verrou optimiste"
     }
-
     FORMULE_ABONNEMENT {
         int id PK
-        string nom
-        decimal tarif_annuel
-        int max_prets_simultanes
+        string nom UK
+        int prets_max
         int duree_pret_jours
-        int max_prolongations
-        boolean autorise_dvd
+        int prolongations_max
+        int reservations_max
+        int penalite_centimes_par_jour
+        int prix_centimes
     }
-
+    UTILISATEUR {
+        int id PK
+        string email UK
+        string mot_de_passe
+        json roles
+    }
     ADHERENT {
         int id PK
+        int utilisateur_id FK "nullable, unique"
         int formule_id FK
-        string numero_adherent UK
+        int site_id FK
+        string numero_carte UK
         string nom
         string prenom
-        string email UK
-        string telephone
-        date date_adhesion
-        date date_expiration
-        date suspendu_jusqu_a
-        boolean actif
+        date debut_abonnement
+        date fin_abonnement
     }
-
     PRET {
         int id PK
         int exemplaire_id FK
         int adherent_id FK
         datetime date_emprunt
         datetime date_retour_prevue
-        datetime date_retour_effective
-        int nb_prolongations
-        string statut
+        datetime date_retour "null = en cours"
+        int nombre_prolongations
+        enum statut "EN_COURS, RENDU, EN_RETARD, PERDU"
     }
-
     RESERVATION {
         int id PK
-        int edition_id FK
         int adherent_id FK
+        int oeuvre_id FK
+        int edition_id FK "nullable"
         int site_retrait_id FK
-        datetime date_reservation
-        datetime date_disponibilite
-        datetime date_expiration_retrait
-        int position_file
-        string statut
+        int exemplaire_reserve_id FK "nullable"
+        datetime date_creation
+        datetime date_expiration_retrait "nullable"
+        enum statut "EN_ATTENTE, DISPONIBLE, RETIREE, ANNULEE, EXPIREE"
     }
-
-    TRANSFERT {
-        int id PK
-        int exemplaire_id FK
-        int site_depart_id FK
-        int site_arrivee_id FK
-        datetime date_demande
-        datetime date_depart
-        datetime date_arrivee
-        string statut
-    }
-
     PENALITE {
         int id PK
         int adherent_id FK
         int pret_id FK
-        string motif
-        decimal montant
-        boolean reglee
+        enum type "RETARD, PERDU, ABIME"
+        int montant_centimes
+        enum statut "IMPAYEE, PAYEE, ANNULEE"
         datetime date_creation
+    }
+    TRANSFERT {
+        int id PK
+        int exemplaire_id FK
+        int site_origine_id FK
+        int site_destination_id FK
+        int reservation_id FK "nullable"
+        enum motif "RESERVATION, REEQUILIBRAGE"
+        datetime date_demande
+        datetime date_reception "nullable"
     }
 ```
 
----
+## 2. Les choix de conception
 
-## 3. Détail des Entités et Choix de Conception
+### 2.1 Œuvre → Édition → Exemplaire (inspiré de FRBR)
+- `Oeuvre` : le contenu intellectuel (*1984*).
+- `Edition` : une publication précise (ISBN, éditeur, langue, type de document).
+- `Exemplaire` : l'objet physique avec un code-barres, c'est lui qui est prêté.
+- Les statistiques (documents les plus empruntés) peuvent se faire par exemplaire, par édition ou par œuvre.
 
-### 3.1 Catalogue et Bibliographie
+### 2.2 Personne + Contribution (auteurs multiples, traducteurs, illustrateurs)
+- Une `Contribution` relie une `Personne` à **soit** une `Oeuvre`, **soit** une `Edition`, avec un `role`.
+- Règle d'intégrité : **exactement un** des deux champs `oeuvre_id` / `edition_id` est renseigné (validation dans l'entité, contrainte `CHECK` possible en MySQL 8).
+- Auteur, scénariste, dessinateur, réalisateur : au niveau de l'**œuvre**. Traducteur, préfacier : au niveau de l'**édition**.
 
-#### `Oeuvre`
-- **Rôle** : Regroupe l'essence intellectuelle d'une création artistique ou littéraire.
-- **Attributs clés** :
-  - `titre` : Titre original ou d'usage général.
-  - `type_document` : Énumération (`LIVRE`, `BD`, `DVD`, `REVUE`).
-  - `description` : Résumé général de l'œuvre.
-  - `annee_creation` : Année d'écriture ou de parution originelle.
+### 2.3 Réservation : œuvre obligatoire, édition optionnelle
+- Si `edition_id` est **vide**, l'adhérent accepte le premier exemplaire disponible de n'importe quelle édition de l'œuvre.
+- Si `edition_id` est **renseigné**, seuls les exemplaires de cette édition conviennent.
+- La file d'attente est ordonnée par `date_creation` : le premier réservant est servi au retour du document.
 
-#### `Personne` & `Contribution` (Auteurs, Traducteurs, Illustrateurs)
-- **Choix de modélisation** : Une table associative `Contribution` relie `Personne` à `Oeuvre` avec une colonne `role`.
-- **Rôles supportés** : `AUTEUR`, `SCENARISTE`, `DESSINATEUR`, `COLORISTE`, `TRADUCTEUR`, `REALISATEUR`, `ACTEUR`.
-- **Justification** : Permet de gérer sans redondance les œuvres collaboratives (ex: scénariste + illustrateur d'une BD, réalisateur d'un film, traducteur d'un roman).
+### 2.4 Deux sites sur l'exemplaire + Transfert
+- `site_attache` : où l'exemplaire est rattaché. `site_actuel` : où il se trouve physiquement.
+- Un `Transfert` est créé quand un exemplaire doit changer de site (réservation sur l'autre site, rééquilibrage). Pendant le trajet, l'exemplaire est `EN_TRANSIT`.
 
-#### `Edition`
-- **Rôle** : Représente une déclinaison éditoriale commerciale précise d'une œuvre.
-- **Attributs clés** :
-  - `isbn` : Identifiant international unique (indexé, nullable pour les DVD sans ISBN qui ont un code EAN/UPC).
-  - `editeur`, `date_publication`, `nombre_pages`, `langue`, `format`, `url_couverture`.
-- **Lien Open Library** : Les fiches importées via Open Library correspondent exactement à cette entité `Edition`.
+### 2.5 Cycle de vie de la réservation
 
-#### `Exemplaire`
-- **Rôle** : L'unité physique empruntable détenue par le réseau.
-- **Attributs clés** :
-  - `code_barre` : Identifiant unique scanné lors des prêts/retours.
-  - `cote` : Localisation thématique en rayon (ex: `R HUG 843`).
-  - `site_actuel` : Référence vers le `Site` où se trouve physiquement l'exemplaire.
-  - `etat_physique` : `NEUF`, `TRES_BON`, `BON`, `ABIME`, `PERDU`.
-  - `statut_disponibilite` : `DISPONIBLE`, `EMPRUNTE`, `RESERVE`, `EN_TRANSIT`, `INDISPONIBLE`.
+```
+EN_ATTENTE → DISPONIBLE → RETIREE
+     │            │
+     └→ ANNULEE   └→ EXPIREE (7 jours ouvrés dépassés)
+```
 
----
+- Au retour d'un exemplaire (ou à l'arrivée d'un transfert), le premier de la file passe à `DISPONIBLE` et `date_expiration_retrait = maintenant + 7 jours ouvrés`.
+- À l'expiration : la réservation passe à `EXPIREE`, le suivant dans la file est servi, sinon l'exemplaire redevient `DISPONIBLE`.
 
-### 3.2 Lieux et Logistique
+### 2.6 Montants en centimes (entiers)
+Pas de décimaux pour l'argent : les flottants provoquent des erreurs d'arrondi (0,1 + 0,2 ≠ 0,3). Monnaie : MAD.
 
-#### `Site`
-- Représente les deux médiathèques physiques du réseau.
-- Permet de rattacher les exemplaires, de gérer les transferts et d'orienter les retraits de réservations.
+### 2.7 Utilisateur séparé d'Adhérent
+Le personnel (bibliothécaire, administrateur) a un compte `Utilisateur` mais pas de fiche `Adherent`. `utilisateur_id` est donc nullable sur l'adhérent. Rôles : `ROLE_ADHERENT`, `ROLE_BIBLIOTHECAIRE`, `ROLE_ADMIN`.
 
-#### `Transfert`
-- Gère la circulation des documents d'un site à l'autre (navette).
-- Statuts : `DEMANDE`, `EN_TRANSIT`, `RECU`, `ANNULE`.
+### 2.8 Concurrence (deux opérations en même temps sur un exemplaire)
+- **Verrou pessimiste** (`SELECT ... FOR UPDATE`) sur l'exemplaire dans une transaction pour tout prêt, retour ou mise de côté.
+- **Verrou optimiste** : la colonne `version` de l'exemplaire détecte les modifications concurrentes.
+- Un exemplaire ne peut avoir qu'un seul prêt `EN_COURS` à la fois : vérifié dans `PretService` sous verrou, et testé automatiquement.
 
----
+## 3. Règles métier portées par le modèle
 
-### 3.3 Adhérents et Abonnements
+| Règle | Où elle vit |
+|---|---|
+| Nombre de prêts simultanés et durée | `FormuleAbonnement.prets_max` / `duree_pret_jours` |
+| Prolongation seulement si personne n'attend | `PretService`, en regardant les `Reservation` `EN_ATTENTE` de l'œuvre |
+| Nombre maximal de prolongations | `Pret.nombre_prolongations` ≤ `FormuleAbonnement.prolongations_max` |
+| Pénalité de retard | `Penalite` (type `RETARD`) = jours de retard × `penalite_centimes_par_jour` |
+| Exemplaire perdu ou abîmé | `Exemplaire.statut` + `Penalite` (type `PERDU` ou `ABIME`) |
+| Adhérent bloqué si abonnement expiré ou pénalités impayées | `PretService` |
 
-#### `FormuleAbonnement`
-- Définit les droits et quotas associés à un profil d'usager.
-- Exemples :
-  - **Jeunesse** : Gratuit, 5 livres/BDs max, 21 jours, pas de DVD.
-  - **Classique** : 15 €/an, 8 documents, 28 jours, 2 prolongations.
-  - **Passion / Multimédia** : 25 €/an, 12 documents dont 4 DVD, 28 jours.
+## 4. Limites connues (v1)
 
-#### `Adherent`
-- Représente l'usager du réseau.
-- Attributs de contrôle :
-  - `numero_adherent` : Identifiant unique pour la carte d'adhérent.
-  - `date_expiration` : Fin de validité de la cotisation annuelle.
-  - `suspendu_jusqu_a` : Bloque tout nouvel emprunt en cas de pénalité ou retard non régularisé.
-
----
-
-### 3.4 Cycle de Vie des Prêts, Réservations et Pénalités
-
-#### `Pret`
-- Enregistre chaque emprunt d'un `Exemplaire` par un `Adherent`.
-- `statut` : `EN_COURS`, `RENDU`, `EN_RETARD`, `PERDU`.
-- `nb_prolongations` : Incrémenté à chaque demande (bloqué si limite atteinte ou si l'édition est réservée).
-
-#### `Reservation`
-- Implémente la file d'attente sur une `Edition`.
-- `position_file` : Détermine l'ordre de priorité (FIFO).
-- `date_expiration_retrait` : Décompte de 7 jours dès que le document est mis de côté.
-
-#### `Penalite`
-- Historise les infractions (retards récurrents, perte, détérioration) et leur régularisation financière ou administrative.
-
----
-
-## 4. Contraintes d'Intégrité et Index MySQL 8
-
-1. **Unicité** :
-   - `adherent.numero_adherent` (UNIQUE)
-   - `adherent.email` (UNIQUE)
-   - `edition.isbn` (UNIQUE conditionnel / indexé)
-   - `exemplaire.code_barre` (UNIQUE)
-   - `site.code` (UNIQUE)
-2. **Indexation de performance** :
-   - Index sur `exemplaire.statut_disponibilite` et `exemplaire.site_actuel_id` (recherche rapide d'exemplaires disponibles par site).
-   - Index sur `pret.statut` et `pret.date_retour_prevue` (détection efficace des retards par commande planifiée).
-   - Index composite sur `reservation (edition_id, statut, position_file)` pour le dépilage rapide de la file d'attente.
-
+- L'envoi d'e-mail de notification dépend de la configuration de Symfony Mailer (voir `DECISIONS.md`) ; à défaut, notification dans l'espace adhérent.
+- Pas de gestion des jours fériés pour le calcul des « jours ouvrés » : on exclut seulement samedi et dimanche.
+- Pas de paiement en ligne des pénalités : le bibliothécaire enregistre le paiement.
