@@ -13,18 +13,18 @@ class Site
     private ?int $id = null;
 
     #[ORM\Column(length: 100, unique: true)]
-    private string $name = '';
+    private string $nom = '';
 
     #[ORM\Column(length: 255)]
-    private string $address = '';
+    private string $adresse = '';
 
     public function getId(): ?int { return $this->id; }
 
-    public function getName(): string { return $this->name; }
-    public function setName(string $name): static { $this->name = $name; return $this; }
+    public function getNom(): string { return $this->nom; }
+    public function setNom(string $v): static { $this->nom = $v; return $this; }
 
-    public function getAddress(): string { return $this->address; }
-    public function setAddress(string $address): static { $this->address = $address; return $this; }
+    public function getAdresse(): string { return $this->adresse; }
+    public function setAdresse(string $v): static { $this->adresse = $v; return $this; }
 
-    public function __toString(): string { return $this->name; }
+    public function __toString(): string { return $this->nom; }
 }
