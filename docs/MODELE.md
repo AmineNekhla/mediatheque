@@ -258,3 +258,4 @@ erDiagram
    - Index sur `exemplaire.statut_disponibilite` et `exemplaire.site_actuel_id` (recherche rapide d'exemplaires disponibles par site).
    - Index sur `pret.statut` et `pret.date_retour_prevue` (détection efficace des retards par commande planifiée).
    - Index composite sur `reservation (edition_id, statut, position_file)` pour le dépilage rapide de la file d'attente.
+

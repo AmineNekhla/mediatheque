@@ -87,3 +87,4 @@
 - `ROLE_USER` / `ROLE_ADHERENT` : Consultation du catalogue public, état de ses emprunts personnels, pose de réservations.
 - `ROLE_BIBLIOTHECAIRE` : Gestion des prêts/retours au guichet, validation des réceptions de transferts, saisie d'exemplaires.
 - `ROLE_ADMIN` : Paramétrage des formules d'abonnements, gestion des comptes utilisateurs, statistiques globales.
+
