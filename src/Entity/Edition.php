@@ -51,9 +51,14 @@ class Edition
     #[ORM\OneToMany(mappedBy: 'edition', targetEntity: Contribution::class, cascade: ['persist'], orphanRemoval: true)]
     private Collection $contributions;
 
+    /** @var Collection<int, Exemplaire> */
+    #[ORM\OneToMany(mappedBy: 'edition', targetEntity: Exemplaire::class)]
+    private Collection $exemplaires;
+
     public function __construct()
     {
         $this->contributions = new ArrayCollection();
+        $this->exemplaires = new ArrayCollection();
     }
 
     public function getId(): ?int { return $this->id; }
@@ -105,6 +110,9 @@ class Edition
         $this->contributions->removeElement($c);
         return $this;
     }
+
+    /** @return Collection<int, Exemplaire> */
+    public function getExemplaires(): Collection { return $this->exemplaires; }
 
     public function __toString(): string
     {
