@@ -88,3 +88,25 @@
 - `ROLE_BIBLIOTHECAIRE` : Gestion des prêts/retours au guichet, validation des réceptions de transferts, saisie d'exemplaires.
 - `ROLE_ADMIN` : Paramétrage des formules d'abonnements, gestion des comptes utilisateurs, statistiques globales.
 
+
+
+## 2026-11-13 — Règles métier (Niveau 2)
+
+- **Transactions et verrous** : chaque opération (emprunt, retour, prolongation, réservation, transfert)
+  s'exécute dans une transaction avec verrou pessimiste (`SELECT ... FOR UPDATE`) sur l'exemplaire.
+  Toutes les vérifications précèdent les modifications.
+- **Emprunt** : refusé si abonnement inactif, pénalités impayées, limite de prêts atteinte,
+  ou exemplaire indisponible / réservé pour un autre adhérent.
+- **Prolongation** : refusée si le prêt est en retard, si le maximum de la formule est atteint,
+  ou si des adhérents attendent le document. Le refus en cas de retard est un choix de ma part
+  (non imposé par l'énoncé).
+- **File d'attente** : premier arrivé, premier servi (date puis identifiant). Une réservation vise
+  une œuvre, avec une édition facultative.
+- **Retrait** : 7 jours ouvrés (lundi à vendredi, jours fériés non gérés), paramétrable.
+- **Pénalités** : retard = jours calendaires de retard × tarif de la formule ; perte = 100 MAD
+  forfaitaire ; dégradation = 30 MAD forfaitaire. Il n'y a pas de prix de remplacement en base, donc
+  les montants sont forfaitaires et les pénalités de retard ne sont pas plafonnées.
+- **Maintenance** : la commande `app:maintenance` expire les réservations et marque les retards ;
+  elle est prévue pour une exécution quotidienne (cron).
+- **Limite connue** : les notifications par e-mail ne sont pas implémentées (remplacées par l'état
+  visible dans l'espace adhérent).

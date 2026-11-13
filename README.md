@@ -73,3 +73,8 @@ symfony server:start
 php -S 127.0.0.1:8000 -t public
 ```
 
+## Tests
+
+Une fois : créer `.env.test.local` (voir `.env.example`), puis
+`php bin/console --env=test doctrine:database:create` et `... doctrine:migrations:migrate -n`.
+Lancer : `vendor\bin\phpunit` (51 tests : calendrier, règles de prêt, réservations, transferts).
