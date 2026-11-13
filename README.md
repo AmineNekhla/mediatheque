@@ -69,9 +69,7 @@ php bin/console doctrine:fixtures:load -n
 
 # 7. Lancer le serveur de développement Symfony
 symfony server:start
-# ou via le serveur intégré PHP (avec max_execution_time adapté pour le cold start sur Windows)
-php -d max_execution_time=300 -S 127.0.0.1:8000 -t public
+# ou
+php -S 127.0.0.1:8000 -t public
 ```
-
-> **Astuce Windows** : Pour des performances optimales en développement (notamment lors du premier chargement après `cache:clear`), assurez-vous d'activer l'extension OPcache dans votre `php.ini` (`zend_extension=opcache`, `opcache.enable=1`).
 
