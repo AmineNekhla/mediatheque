@@ -67,15 +67,16 @@ class Adherent
     public function getFinAbonnement(): ?\DateTimeImmutable { return $this->finAbonnement; }
     public function setFinAbonnement(?\DateTimeImmutable $v): static { $this->finAbonnement = $v; return $this; }
 
-    /** Règle simple, utilisée plus tard par PretService : l'abonnement couvre-t-il cette date ? */
-    public function abonnementActifLe(\DateTimeImmutable $date): bool
+       public function abonnementActifLe(\DateTimeImmutable $date): bool
     {
-        return $this->debutAbonnement !== null
-            && $this->finAbonnement !== null
-            && $date >= $this->debutAbonnement
-            && $date <= $this->finAbonnement;
-    }
+        if ($this->debutAbonnement === null || $this->finAbonnement === null) {
+            return false;
+        }
 
+        $jour = $date->setTime(0, 0); // on compare des jours, pas des heures
+
+        return $jour >= $this->debutAbonnement && $jour <= $this->finAbonnement;
+    }
     public function __toString(): string
     {
         return sprintf('%s %s (%s)', $this->prenom, $this->nom, $this->numeroCarte);
