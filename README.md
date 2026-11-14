@@ -78,3 +78,23 @@ php -S 127.0.0.1:8000 -t public
 Une fois : créer `.env.test.local` (voir `.env.example`), puis
 `php bin/console --env=test doctrine:database:create` et `... doctrine:migrations:migrate -n`.
 Lancer : `vendor\bin\phpunit` (51 tests : calendrier, règles de prêt, réservations, transferts).
+
+
+## Fonctionnalités
+
+- **Catalogue public** : recherche par titre, auteur ou ISBN ; disponibilité par exemplaire et par site.
+- **Espace adhérent** (`/mon-espace`) : prêts, prolongation, réservations, pénalités.
+- **Guichet** (`/biblio`) : prêt et retour, réception des transferts entre sites, règlement des pénalités.
+- **Import Open Library** (`/biblio/import`) : création de fiches à partir d'un ISBN, à l'unité ou par
+  lot (10 maximum). L'API est publique : **aucune clé n'est nécessaire**.
+- **Back-office** (`/admin`) : gestion du catalogue, des adhérents et des réseaux (EasyAdmin).
+
+## Comptes de démonstration (mot de passe : `password`)
+
+| Rôle | E-mail |
+|---|---|
+| Administrateur | `admin@mediatheque.test` |
+| Bibliothécaire | `bibliothecaire@mediatheque.test` |
+| Adhérent | `adherent@mediatheque.test` (carte `MED-A0001`) |
+
+Ces comptes n'existent que dans les données de démonstration : ne jamais réutiliser ce mot de passe.

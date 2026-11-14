@@ -65,7 +65,10 @@
 
 - **Décision adoptée** : **Stratégie d'enrichissement progressif avec prédominance du contrôle local.**
 - **Règles d'arbitrage** :
-  1. **Création d'une nouvelle fiche via ISBN** : Les données Open Library sont utilisées pour pré-remplir le formulaire d'édition (titre, couverture, pagination, éditeur). Les données sont présentées au bibliothécaire qui valide ou complète manuellement avant enregistrement définitif.
+    1. **Création d'une fiche via ISBN** : l'import enregistre directement la fiche (source `OPEN_LIBRARY`) ;
+     si l'auteur, l'éditeur ou l'année manquent, elle est marquée « à vérifier » pour contrôle par un
+     bibliothécaire. Un ISBN déjà au catalogue n'est jamais modifié. Un import par lot traite chaque ISBN
+     indépendamment (maximum 10) ; une panne d'Open Library est signalée sans rien écrire en base.
   2. **Données manquantes (ex: genre littéraire, cote Dewey)** : L'entité `Edition` est sauvegardée avec un marqueur `a_verifier = true` pour signaler aux bibliothécaires les fiches nécessitant une indexation manuelle.
   3. **Différence sur un document existant** : Les données déjà saisies et validées par le catalogue local font toujours foi. L'API distante n'écrase jamais automatiquement les champs locaux sans action explicite de l'administrateur.
   4. **Fallback & Couvertures** : Si la couverture Open Library est indisponible, une image générique par défaut selon le type de document (`LIVRE`, `BD`, `DVD`) est assignée.
@@ -119,3 +122,23 @@
   bibliothécaire. Le bibliothécaire n'hérite pas d'adhérent : le personnel n'a pas de carte.
 - **Protection par chemin** : `/admin` et `/biblio` pour le personnel, `/mon-espace` pour les adhérents.
 - **Compte de démonstration** : mot de passe `password` (données de démo uniquement, jamais en production).
+
+
+---
+
+## 3. Limites connues
+
+- **Import Open Library** : chaque import crée une nouvelle œuvre (le regroupement des éditions d'une même
+  œuvre se fait à la main dans le back-office) ; un même livre en ISBN-10 et en ISBN-13 serait vu comme deux
+  ISBN différents ; la couverture n'est pas affichée (seule l'URL est stockée).
+- **Prolongation gratuite** : l'énoncé n'impose aucun frais ; elle est refusée si le prêt est en retard,
+  si le maximum de la formule est atteint, ou si des adhérents attendent le document.
+- **Jours ouvrés** : seuls le samedi et le dimanche sont exclus ; les jours fériés ne sont pas gérés.
+- **Notifications** : pas d'envoi d'e-mail ; l'état des réservations est visible dans l'espace adhérent.
+- **Pénalités** : montants forfaitaires pour un document perdu (100 MAD) ou abîmé (30 MAD), faute de prix de
+  remplacement en base ; les pénalités de retard ne sont pas plafonnées. Le paiement est enregistré
+  manuellement au guichet.
+- **Tests de concurrence** : le verrou `SELECT ... FOR UPDATE` empêche deux prêts simultanés du même
+  exemplaire, mais les tests exécutent les opérations l'une après l'autre ; un test avec deux connexions
+  en parallèle reste à écrire.
+- **Back-office** : le CRUD des comptes utilisateurs n'est pas fourni (création par fixtures).
