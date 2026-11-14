@@ -1,0 +1,107 @@
+{% extends 'layout.html.twig' %}
+
+{% block title %}Guichet{% endblock %}
+
+{% block body %}
+<div class="carte">
+    <h1>Guichet</h1>
+    <h2>Emprunter</h2>
+    <form method="post" action="{{ path('app_biblio_emprunter') }}">
+        <label for="carte">Numéro de carte</label>
+        <input type="text" id="carte" name="carte" placeholder="MED-A0001" required>
+        <label for="code-emprunt">Code-barres</label>
+        <input type="text" id="code-emprunt" name="code" placeholder="MED-00001" required>
+        <input type="hidden" name="_token" value="{{ csrf_token('action') }}">
+        <button type="submit">Enregistrer le prêt</button>
+    </form>
+</div>
+
+<div class="carte">
+    <h2>Rendre</h2>
+    <form method="post" action="{{ path('app_biblio_rendre') }}">
+        <label for="code-retour">Code-barres</label>
+        <input type="text" id="code-retour" name="code" required>
+        <label for="site-retour">Rendu dans</label>
+        <select id="site-retour" name="site">
+            <option value="0">(site inchangé)</option>
+            {% for s in sites %}<option value="{{ s.id }}">{{ s.nom }}</option>{% endfor %}
+        </select>
+        <label><input type="checkbox" name="abime" value="1"> Document abîmé</label>
+        <input type="hidden" name="_token" value="{{ csrf_token('action') }}">
+        <button type="submit">Enregistrer le retour</button>
+    </form>
+</div>
+
+<div class="carte">
+    <h2>Transferts à réceptionner</h2>
+    {% if transferts is empty %}
+        <p>Aucun transfert en cours.</p>
+    {% else %}
+    <table>
+        <thead><tr><th>Document</th><th>De</th><th>Vers</th><th>Motif</th><th></th></tr></thead>
+        <tbody>
+        {% for t in transferts %}
+            <tr>
+                <td>{{ t.exemplaire.codeBarres }} · {{ t.exemplaire.edition.oeuvre.titre }}</td>
+                <td>{{ t.siteOrigine }}</td>
+                <td>{{ t.siteDestination }}</td>
+                <td>{{ t.motif.value }}</td>
+                <td>
+                    <form method="post" action="{{ path('app_biblio_recevoir', {id: t.id}) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('action') }}">
+                        <button type="submit" style="margin-top:0">Réceptionner</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+<div class="carte">
+    <h2>Prêts en retard</h2>
+    {% if retards is empty %}
+        <p>Aucun prêt en retard.</p>
+    {% else %}
+    <table>
+        <thead><tr><th>Adhérent</th><th>Document</th><th>Échéance</th></tr></thead>
+        <tbody>
+        {% for p in retards %}
+            <tr>
+                <td>{{ p.adherent }}</td>
+                <td>{{ p.exemplaire.codeBarres }} · {{ p.exemplaire.edition.oeuvre.titre }}</td>
+                <td>{{ p.dateRetourPrevue|date('d/m/Y') }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+<div class="carte">
+    <h2>Pénalités impayées</h2>
+    {% if penalites is empty %}
+        <p>Aucune pénalité impayée.</p>
+    {% else %}
+    <table>
+        <thead><tr><th>Adhérent</th><th>Type</th><th>Montant</th><th></th></tr></thead>
+        <tbody>
+        {% for p in penalites %}
+            <tr>
+                <td>{{ p.adherent }}</td>
+                <td>{{ p.type.value }}</td>
+                <td>{{ (p.montantCentimes / 100)|number_format(2, ',', ' ') }} MAD</td>
+                <td>
+                    <form method="post" action="{{ path('app_biblio_payer', {id: p.id}) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('action') }}">
+                        <button type="submit" style="margin-top:0">Marquer payée</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endblock %}
