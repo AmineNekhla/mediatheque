@@ -1,0 +1,58 @@
+{% extends 'layout.html.twig' %}
+
+{% block title %}{{ oeuvre.titre }}{% endblock %}
+
+{% block body %}
+<div class="carte">
+    <h1>{{ oeuvre.titre }}</h1>
+    <p>
+        {% for c in oeuvre.contributions %}
+            {{ c.personne }} <small>({{ c.role.value|lower }})</small>{% if not loop.last %}, {% endif %}
+        {% endfor %}
+    </p>
+    {% if oeuvre.anneePremierePublication %}<p>Première publication : {{ oeuvre.anneePremierePublication }}</p>{% endif %}
+</div>
+
+{% for edition in oeuvre.editions %}
+<div class="carte">
+    <h2>{{ edition.typeDocument.value }} · {{ edition.editeur ?? 'éditeur inconnu' }}{% if edition.anneePublication %} ({{ edition.anneePublication }}){% endif %}</h2>
+    {% if edition.isbn %}<p>ISBN {{ edition.isbn }}</p>{% endif %}
+    {% for c in edition.contributions %}<p><small>{{ c.personne }} ({{ c.role.value|lower }})</small></p>{% endfor %}
+    <table>
+        <thead><tr><th>Code-barres</th><th>Site</th><th>État</th></tr></thead>
+        <tbody>
+        {% for ex in edition.exemplaires %}
+            <tr><td>{{ ex.codeBarres }}</td><td>{{ ex.siteActuel }}</td><td>{{ ex.statut.value }}</td></tr>
+        {% else %}
+            <tr><td colspan="3">Aucun exemplaire.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endfor %}
+
+{% if is_granted('ROLE_ADHERENT') %}
+<div class="carte">
+    <h2>Réserver</h2>
+    <form method="post" action="{{ path('app_reserver', {id: oeuvre.id}) }}">
+        <label for="site">Site de retrait</label>
+        <select id="site" name="site">
+            {% for s in sites %}<option value="{{ s.id }}">{{ s.nom }}</option>{% endfor %}
+        </select>
+
+        <label for="edition">Édition</label>
+        <select id="edition" name="edition">
+            <option value="0">N'importe laquelle</option>
+            {% for e in oeuvre.editions %}
+                <option value="{{ e.id }}">{{ e.typeDocument.value }} · {{ e.editeur }} {{ e.anneePublication }}</option>
+            {% endfor %}
+        </select>
+
+        <input type="hidden" name="_token" value="{{ csrf_token('action') }}">
+        <button type="submit">Réserver</button>
+    </form>
+</div>
+{% elseif not is_granted('ROLE_USER') %}
+<p><a href="{{ path('app_login') }}">Connectez-vous</a> pour réserver.</p>
+{% endif %}
+{% endblock %}

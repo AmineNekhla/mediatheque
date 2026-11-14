@@ -110,3 +110,12 @@
   elle est prévue pour une exécution quotidienne (cron).
 - **Limite connue** : les notifications par e-mail ne sont pas implémentées (remplacées par l'état
   visible dans l'espace adhérent).
+
+
+  ## 2026-11-13 — Sécurité (Niveau 3)
+
+- **Authentification** : formulaire de connexion Symfony avec protection CSRF, mots de passe hachés (`auto`).
+- **Rôles** : `ROLE_ADHERENT`, `ROLE_BIBLIOTHECAIRE`, `ROLE_ADMIN`. L'administrateur hérite du
+  bibliothécaire. Le bibliothécaire n'hérite pas d'adhérent : le personnel n'a pas de carte.
+- **Protection par chemin** : `/admin` et `/biblio` pour le personnel, `/mon-espace` pour les adhérents.
+- **Compte de démonstration** : mot de passe `password` (données de démo uniquement, jamais en production).

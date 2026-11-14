@@ -1,0 +1,33 @@
+{% extends 'layout.html.twig' %}
+
+{% block title %}Catalogue{% endblock %}
+
+{% block body %}
+<div class="carte">
+    <h1>Catalogue</h1>
+    <form method="get" action="{{ path('app_accueil') }}">
+        <label for="q">Titre, auteur ou ISBN</label>
+        <input type="text" id="q" name="q" value="{{ q }}" placeholder="Ex. : Tanger, Dupont, 978...">
+        <button type="submit">Rechercher</button>
+    </form>
+</div>
+
+<div class="carte">
+    {% if oeuvres is empty %}
+        <p>Aucun résultat.</p>
+    {% else %}
+        <table>
+            <thead><tr><th>Titre</th><th>Disponibles</th></tr></thead>
+            <tbody>
+            {% for oeuvre in oeuvres %}
+                <tr>
+                    <td><a href="{{ path('app_oeuvre', {id: oeuvre.id}) }}">{{ oeuvre.titre }}</a></td>
+                    <td>{{ disponibles[oeuvre.id] ?? 0 }} exemplaire(s)</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% if oeuvres|length == 30 %}<p><small>Affichage limité à 30 résultats : affinez votre recherche.</small></p>{% endif %}
+    {% endif %}
+</div>
+{% endblock %}

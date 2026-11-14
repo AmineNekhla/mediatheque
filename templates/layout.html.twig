@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Médiathèques{% endblock %}</title>
+    <style>
+        :root { --fond: #f6f7f9; --carte: #fff; --texte: #1f2937; --accent: #2563eb; --bord: #e5e7eb; --ok: #166534; --ko: #991b1b; }
+        @media (prefers-color-scheme: dark) {
+            :root { --fond: #111827; --carte: #1f2937; --texte: #f3f4f6; --accent: #60a5fa; --bord: #374151; --ok: #86efac; --ko: #fca5a5; }
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, sans-serif; background: var(--fond); color: var(--texte); }
+        header { display: flex; justify-content: space-between; align-items: center; padding: .8rem 1.5rem; background: var(--carte); border-bottom: 1px solid var(--bord); flex-wrap: wrap; gap: .5rem; }
+        header a { color: var(--accent); text-decoration: none; margin-left: 1rem; }
+        header .marque { font-weight: 700; margin-left: 0; color: var(--texte); }
+        main { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
+        .carte { background: var(--carte); border: 1px solid var(--bord); border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem; }
+        label { display: block; margin: .8rem 0 .2rem; font-weight: 600; }
+        input[type=email], input[type=password], input[type=text], select { width: 100%; padding: .55rem; border: 1px solid var(--bord); border-radius: 6px; background: var(--fond); color: var(--texte); }
+        button, .bouton { display: inline-block; margin-top: 1rem; padding: .55rem 1.1rem; background: var(--accent); color: #fff; border: 0; border-radius: 6px; cursor: pointer; text-decoration: none; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: .5rem; border-bottom: 1px solid var(--bord); }
+        .flash-ok { color: var(--ok); } .flash-erreur { color: var(--ko); }
+        .erreur { color: var(--ko); }
+    </style>
+</head>
+<body>
+<header>
+    <a class="marque" href="{{ path('app_accueil') }}">📚 Médiathèques</a>
+    <nav>
+        <a href="{{ path('app_accueil') }}">Catalogue</a>
+        {% if is_granted('ROLE_ADHERENT') %}<a href="{{ path('app_espace') }}">Mon espace</a>{% endif %}
+        {% if is_granted('ROLE_BIBLIOTHECAIRE') %}
+            <a href="{{ path('app_biblio') }}">Guichet</a>
+            <a href="/admin">Back-office</a>
+        {% endif %}
+        {% if is_granted('ROLE_USER') %}
+            <span>{{ app.user.userIdentifier }}</span>
+            <a href="{{ path('app_logout') }}">Déconnexion</a>
+        {% else %}
+            <a href="{{ path('app_login') }}">Connexion</a>
+        {% endif %}
+    </nav>
+</header>
+<main>
+    {% for type, messages in app.flashes %}
+        {% for message in messages %}<p class="flash-{{ type }}">{{ message }}</p>{% endfor %}
+    {% endfor %}
+    {% block body %}{% endblock %}
+</main>
+</body>
+</html>
