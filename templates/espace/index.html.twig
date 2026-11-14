@@ -1,0 +1,93 @@
+{% extends 'layout.html.twig' %}
+
+{% block title %}Mon espace{% endblock %}
+
+{% block body %}
+{% if adherent is null %}
+<div class="carte">
+    <p>Votre compte n'est associé à aucune carte d'adhérent. Adressez-vous à un bibliothécaire.</p>
+</div>
+{% else %}
+<div class="carte">
+    <h1>Bonjour {{ adherent.prenom }} {{ adherent.nom }}</h1>
+    <p>
+        Carte {{ adherent.numeroCarte }} · formule {{ adherent.formule }} ·
+        abonnement jusqu'au {{ adherent.finAbonnement|date('d/m/Y') }}
+    </p>
+</div>
+
+<div class="carte">
+    <h2>Mes prêts</h2>
+    {% if prets is empty %}
+        <p>Aucun prêt en cours.</p>
+    {% else %}
+    <table>
+        <thead><tr><th>Document</th><th>À rendre avant</th><th>État</th><th></th></tr></thead>
+        <tbody>
+        {% for pret in prets %}
+            <tr>
+                <td>{{ pret.exemplaire.edition.oeuvre.titre }}</td>
+                <td>{{ pret.dateRetourPrevue|date('d/m/Y') }}</td>
+                <td>{{ pret.statut.value }}{% if pret.nombreProlongations > 0 %} (prolongé {{ pret.nombreProlongations }}×){% endif %}</td>
+                <td>
+                    <form method="post" action="{{ path('app_espace_prolonger', {id: pret.id}) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('action') }}">
+                        <button type="submit" style="margin-top:0">Prolonger</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+<div class="carte">
+    <h2>Mes réservations</h2>
+    {% if reservations is empty %}
+        <p>Aucune réservation.</p>
+    {% else %}
+    <table>
+        <thead><tr><th>Document</th><th>État</th><th>Site de retrait</th><th>À retirer avant</th><th></th></tr></thead>
+        <tbody>
+        {% for r in reservations %}
+            <tr>
+                <td>{{ r.oeuvre.titre }}</td>
+                <td>{{ r.statut.value }}</td>
+                <td>{{ r.siteRetrait }}</td>
+                <td>{{ r.dateExpirationRetrait ? r.dateExpirationRetrait|date('d/m/Y') : '—' }}</td>
+                <td>
+                    <form method="post" action="{{ path('app_espace_annuler', {id: r.id}) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('action') }}">
+                        <button type="submit" style="margin-top:0">Annuler</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+<div class="carte">
+    <h2>Mes pénalités</h2>
+    {% if penalites is empty %}
+        <p>Aucune pénalité impayée.</p>
+    {% else %}
+        <p class="erreur">Les pénalités impayées bloquent les emprunts jusqu'à leur règlement au guichet.</p>
+        <table>
+            <thead><tr><th>Type</th><th>Montant</th><th>Date</th></tr></thead>
+            <tbody>
+            {% for p in penalites %}
+                <tr>
+                    <td>{{ p.type.value }}</td>
+                    <td>{{ (p.montantCentimes / 100)|number_format(2, ',', ' ') }} MAD</td>
+                    <td>{{ p.dateCreation|date('d/m/Y') }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
