@@ -1,0 +1,35 @@
+{% extends 'layout.html.twig' %}
+
+{% block title %}Import par ISBN{% endblock %}
+
+{% block body %}
+<div class="carte">
+    <h1>Import par ISBN (Open Library)</h1>
+    <p>Un ISBN par ligne, ou séparés par des virgules (10 maximum). Les ISBN déjà au catalogue ne sont jamais modifiés.
+       Les exemplaires physiques s'ajoutent ensuite dans le back-office.</p>
+    <form method="post" action="{{ path('app_biblio_import') }}">
+        <label for="isbns">ISBN</label>
+        <textarea id="isbns" name="isbns" rows="5" style="width:100%" placeholder="978-0-14-032872-1">{{ saisie }}</textarea>
+        <input type="hidden" name="_token" value="{{ csrf_token('action') }}">
+        <button type="submit">Importer</button>
+    </form>
+</div>
+
+{% if resultats is not empty %}
+<div class="carte">
+    <h2>Résultat</h2>
+    <table>
+        <thead><tr><th>ISBN</th><th>Statut</th><th>Détail</th></tr></thead>
+        <tbody>
+        {% for r in resultats %}
+            <tr>
+                <td>{{ r.isbn }}</td>
+                <td class="{{ r.statut.value == 'CREE' ? 'flash-ok' : (r.statut.value == 'DEJA_PRESENT' ? '' : 'flash-erreur') }}">{{ r.statut.value }}</td>
+                <td>{{ r.message }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}
