@@ -142,3 +142,17 @@
   exemplaire, mais les tests exécutent les opérations l'une après l'autre ; un test avec deux connexions
   en parallèle reste à écrire.
 - **Back-office** : le CRUD des comptes utilisateurs n'est pas fourni (création par fixtures).
+
+## 2026-11-14 — Livraison (Niveau 5)
+
+- **Une commande** : `docker compose up --build` construit l'image (PHP 8.2 + Apache), démarre MySQL 8,
+  applique les migrations et charge les données de démonstration.
+- **Données de démonstration protégées** : `app:demo-data` ne charge les fixtures que si la base est vide,
+  car elles vident les tables ; un redémarrage ne détruit donc jamais de données.
+- **Environnement `dev` dans le conteneur** : choix assumé pour une démonstration (assets servis à la volée,
+  outil de chargement des fixtures disponible). Ce n'est pas une configuration de production ; cela
+  est signalé dans `INSTALL.md`.
+- **Port MySQL non publié** par défaut, pour éviter les conflits avec un MySQL local (rencontré pendant le
+  développement : un MySQL sous WSL interceptait le port 3306).
+- **Maintenance planifiée** : `app:maintenance` s'exécute toutes les heures dans le conteneur
+  (expiration des réservations, prêts en retard).

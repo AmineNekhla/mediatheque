@@ -98,3 +98,19 @@ Lancer : `vendor\bin\phpunit` (51 tests : calendrier, règles de prêt, réserva
 | Adhérent | `adherent@mediatheque.test` (carte `MED-A0001`) |
 
 Ces comptes n'existent que dans les données de démonstration : ne jamais réutiliser ce mot de passe.
+
+
+## Installation
+
+Voir [`INSTALL.md`](INSTALL.md) : `docker compose up --build`, puis http://localhost:8000.
+
+### Développement avec PHP local (sans le conteneur `app`)
+
+Créer un `compose.override.yaml` (ignoré par Git) pour exposer MySQL à votre machine :
+
+    services:
+      database:
+        ports:
+          - "3306:3306"
+
+puis `docker compose up -d database` et utiliser le `DATABASE_URL` de `.env.example`.

@@ -1,0 +1,15 @@
+.git
+.gitignore
+.idea
+.vscode
+vendor
+var
+node_modules
+public/bundles
+public/assets
+assets/vendor
+.env.local
+.env.*.local
+compose*.yaml
+Dockerfile
+.dockerignore
