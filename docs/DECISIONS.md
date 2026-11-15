@@ -1,158 +1,196 @@
-# Journal des Décisions d'Architecture et Choix Métier
+# Journal des décisions d'architecture et choix métier
 
-**Projet** : Gestion d'un réseau de médiathèques (Sujet 4 - PFE Challenge EMC)  
-**Date initiale** : 11 Novembre 2026  
-**Auteur** : Amine Nekhla  
-**Stack** : Symfony 7.4 / PHP 8.2+ / MySQL 8 / Doctrine ORM / EasyAdmin  
+**Projet** : gestion d'un réseau de médiathèques (Sujet 4, PFE Challenge EMC)
+**Auteur** : Amine Nekhla
+**Stack** : Symfony 7.4 (LTS) · PHP 8.2 · MySQL 8 · Doctrine ORM · EasyAdmin 5 · Docker
+
+Ce document consigne les décisions prises, leurs raisons, et les limites assumées. Le modèle de données est détaillé dans `docs/MODELE.md`.
 
 ---
 
 ## 1. Réponses argumentées aux « Questions à trancher »
 
-### Question 1 : Deux éditions d'un même roman sont-elles la même œuvre ?
+### Question 1 : deux éditions d'un même roman sont-elles la même œuvre ?
 
-- **Décision adoptée** : **Oui conceptuellement, mais non matériellement.** Nous adoptons une séparation stricte inspirée du modèle bibliographique international **FRBR** (*Functional Requirements for Bibliographic Records*) :
-  - L'entité **`Oeuvre`** porte le contenu intellectuel commun (ex. *1984* de George Orwell, sa thématique, sa date d'écriture, son résumé global).
-  - L'entité **`Edition`** porte la publication spécifique (ISBN, éditeur comme Gallimard ou Folio, traducteur éventuel, date d'impression, pagination, couverture).
-  - Les **`Exemplaires`** physiques sont rattachés directement à une `Edition`.
-- **Justification** :
-  - Cela évite la redondance des métadonnées (auteurs, genre, synopsis).
-  - Pour les usagers, cela permet à la fois de rechercher "le roman *1984*" sans préférence d'édition, ou de cibler une édition particulière (ex. version bilingue, édition illustrée, gros caractères).
-  - Lors des réservations, un adhérent peut réserver une édition spécifique ou accepter le premier exemplaire disponible lié à l'œuvre.
+**Décision : oui conceptuellement, non matériellement.** Séparation inspirée du modèle bibliographique FRBR :
 
----
+- `Oeuvre` : le contenu intellectuel commun (par exemple *1984* d'Orwell).
+- `Edition` : une publication précise (ISBN, éditeur, langue, type de document, pagination).
+- `Exemplaire` : l'objet physique, identifié par un code-barres, rattaché à une édition. C'est lui qui est prêté.
 
-### Question 2 : Un adhérent peut-il réserver un document disponible uniquement dans l'autre site ?
+**Raisons.**
 
-- **Décision adoptée** : **Oui.** Le réseau fonctionne comme un ensemble unifié et solidaire entre les deux médiathèques.
-- **Fonctionnement & Justification** :
-  - L'adhérent choisit son **site de retrait préféré** lors de la réservation.
-  - Si l'exemplaire est disponible sur l'autre site, le système émet automatiquement une demande de **`Transfert`** (navette inter-sites).
-  - L'exemplaire passe au statut `EN_TRANSIT`.
-  - À la réception par les bibliothécaires du site de destination, le document passe au statut `DISPONIBLE` pour le demandeur, qui est immédiatement notifié par e-mail.
-  - Cela maximise l'accès au fonds documentaire (8 000 documents partagés) et valorise l'intérêt d'un réseau multi-sites.
+- Pas de duplication des métadonnées (auteurs, résumé) d'une édition à l'autre.
+- L'usager peut chercher « le roman » sans préférence d'édition, ou viser une édition précise (gros caractères, bilingue).
+- Une adaptation (un film tiré d'un roman) est une œuvre distincte ; une traduction est une édition de la même œuvre.
 
----
+**Conséquence sur les réservations** : une réservation vise une œuvre (obligatoire) avec une édition facultative. Édition vide : n'importe quel exemplaire de l'œuvre convient. Édition renseignée : seuls les exemplaires de cette édition conviennent.
 
-### Question 3 : Combien de temps un document réservé reste-t-il mis de côté une fois revenu ?
+### Question 2 : un adhérent peut-il réserver un document disponible uniquement dans l'autre site ?
 
-- **Décision adoptée** : **7 jours ouvrés** (délai paramétrable dans la configuration système).
-- **Fonctionnement & Justification** :
-  - Dès qu'un exemplaire réservé est réceptionné (retour de prêt ou arrivée de navette), l'entité `Reservation` passe au statut `DISPONIBLE`, avec un champ `date_expiration_retrait = Maintenant + 7 jours`.
-  - Un email automatique de mise à disposition est envoyé à l'adhérent.
-  - **Gestion de l'expiration** : Une commande planifiée (ou événement lors du scan) vérifie quotidiennement les réservations expirées. Si le délai est dépassé :
-    1. La réservation passe en `EXPIREE`.
-    2. Si d'autres adhérents sont dans la file d'attente (rang suivant), le document est réassigné au prochain demandeur pour un nouveau cycle de 7 jours.
-    3. Si la file est vide, l'exemplaire repasse au statut `DISPONIBLE` et est remis en rayon.
-  - 7 jours offre un équilibre idéal entre confort pour l'usager et rotation dynamique des ouvrages prisés.
+**Décision : oui.** Le réseau fonctionne comme un fonds unique partagé entre les deux médiathèques.
 
----
+- L'adhérent choisit son site de retrait.
+- Si un exemplaire disponible se trouve sur l'autre site, le système crée un `Transfert` (motif `RESERVATION`) et l'exemplaire passe à `EN_TRANSIT`.
+- À la réception de la navette par le bibliothécaire du site de destination, l'exemplaire passe à `RESERVE` (mis de côté), la réservation à `DISPONIBLE`, et le délai de retrait démarre.
+- Si la réservation est annulée pendant le trajet, l'exemplaire est remis en rayon à son arrivée et proposé au suivant de la file.
 
-### Question 4 : Comment représenter les auteurs multiples, les traducteurs, les illustrateurs ?
+**Raison** : un réseau n'a d'intérêt que si les documents circulent entre ses sites.
 
-- **Décision adoptée** : Création d'une table pivot / entité intermédiaire **`Contribution`** avec une énumération typée `RoleContribution`.
-- **Structure** :
-  - Une entité `Personne` (nom, prénom, nationalité, biographie).
-  - Une entité `Contribution` reliant une `Personne` à une `Oeuvre` (ou à une `Edition` pour les travaux propres à une publication spécifique comme la traduction ou la préface).
-  - Rôles gérés : `AUTEUR`, `ILLUSTRATEUR`, `SCENARISTE`, `DESSINATEUR`, `COLORISTE`, `TRADUCTEUR`, `PREFACIER`, `REALISATEUR`, `ACTEUR`.
-- **Justification** :
-  - Cette approche est essentielle pour modéliser fidèlement les Bandes Dessinées (ex: René Goscinny scénariste et Albert Uderzo dessinateur d'Astérix), les mangas, les anthologies et les films DVD (réalisateur vs interprètes).
-  - Elle permet des recherches multicritères précises : "toutes les œuvres illustrées par X" ou "tous les livres traduits par Y".
+**Choix d'implémentation** : l'adhérent n'est pas notifié par e-mail ; l'état de sa réservation (en attente, disponible, date limite de retrait) est visible dans « Mon espace ».
 
----
+### Question 3 : combien de temps un document réservé reste-t-il mis de côté une fois revenu ?
 
-### Question 5 : Que faire quand Open Library renvoie des données incomplètes ou différentes de celles du catalogue ?
+**Décision : 7 jours ouvrés** (paramètre du service `ReservationService`, modifiable).
 
-- **Décision adoptée** : **Stratégie d'enrichissement progressif avec prédominance du contrôle local.**
-- **Règles d'arbitrage** :
-    1. **Création d'une fiche via ISBN** : l'import enregistre directement la fiche (source `OPEN_LIBRARY`) ;
-     si l'auteur, l'éditeur ou l'année manquent, elle est marquée « à vérifier » pour contrôle par un
-     bibliothécaire. Un ISBN déjà au catalogue n'est jamais modifié. Un import par lot traite chaque ISBN
-     indépendamment (maximum 10) ; une panne d'Open Library est signalée sans rien écrire en base.
-  2. **Données manquantes (ex: genre littéraire, cote Dewey)** : L'entité `Edition` est sauvegardée avec un marqueur `a_verifier = true` pour signaler aux bibliothécaires les fiches nécessitant une indexation manuelle.
-  3. **Différence sur un document existant** : Les données déjà saisies et validées par le catalogue local font toujours foi. L'API distante n'écrase jamais automatiquement les champs locaux sans action explicite de l'administrateur.
-  4. **Fallback & Couvertures** : Si la couverture Open Library est indisponible, une image générique par défaut selon le type de document (`LIVRE`, `BD`, `DVD`) est assignée.
+- Dès qu'un exemplaire est mis de côté (retour d'un prêt, arrivée d'une navette), la réservation passe à `DISPONIBLE` avec `dateExpirationRetrait = maintenant + 7 jours ouvrés` (lundi à vendredi).
+- La commande `app:maintenance` (exécutée toutes les heures dans le conteneur Docker, à planifier sinon) traite les réservations dépassées :
+  1. la réservation passe à `EXPIREE` ;
+  2. s'il reste quelqu'un dans la file pour cette œuvre, l'exemplaire lui est attribué pour un nouveau cycle ;
+  3. sinon l'exemplaire redevient `DISPONIBLE` et retourne en rayon.
+- Les jours fériés ne sont pas gérés (voir limites).
 
----
+**Raison** : assez long pour permettre de venir, assez court pour ne pas immobiliser les ouvrages demandés.
 
-## 2. Décisions Techniques et Architecturales
+### Question 4 : comment représenter les auteurs multiples, traducteurs, illustrateurs ?
 
-### 2.1 Stack & Framework
-- **Symfony 7.4** : Version moderne LTS / courante garantissant le support des attributs PHP 8.2+, de Symfony Flex et de la gestion fine des formulaires et services.
-- **MySQL 8.0** : Moteur de base de données relationnel imposé, supportant les clés étrangères, contraintes d'unicité, JSON natif et transactions ACID requises pour l'intégrité des prêts/réservations.
-- **Doctrine ORM 3 & Migrations** : Gestion du schéma via migrations versionnées pour une traçabilité totale des évolutions de base de données.
-- **EasyAdmin Bundle 4** : Interface back-office rapide et robuste pour le niveau 1 et l'administration quotidienne des bibliothécaires.
+**Décision** : une entité `Personne` et une entité de liaison `Contribution` avec un rôle (énumération `RoleContribution`).
 
-### 2.2 Stratégie des statuts (State Machines)
-- Les cycles de vie d'un `Pret` (`EN_COURS` -> `RENDU` / `EN_RETARD` / `PERDU`) et d'un `Exemplaire` (`DISPONIBLE` -> `EMPRUNTE` -> `RESERVE` -> `EN_TRANSIT`) sont isolés dans des services métier dédiés (`LoanService`, `ReservationService`, `TransferService`) avec transactions explicites pour éviter tout état incohérent ou concurrence d'accès (race condition lors de réservations simultanées).
+- Rôles : `AUTEUR`, `ILLUSTRATEUR`, `SCENARISTE`, `DESSINATEUR`, `COLORISTE`, `TRADUCTEUR`, `PREFACIER`, `REALISATEUR`, `ACTEUR`.
+- Une contribution est rattachée **soit à une œuvre, soit à une édition, jamais aux deux** (règle vérifiée par une validation sur l'entité). Auteur, scénariste, dessinateur, réalisateur : niveau œuvre. Traducteur, préfacier : niveau édition.
 
-### 2.3 Gestion des rôles et sécurisation (Niveau 3)
-- `ROLE_USER` / `ROLE_ADHERENT` : Consultation du catalogue public, état de ses emprunts personnels, pose de réservations.
-- `ROLE_BIBLIOTHECAIRE` : Gestion des prêts/retours au guichet, validation des réceptions de transferts, saisie d'exemplaires.
-- `ROLE_ADMIN` : Paramétrage des formules d'abonnements, gestion des comptes utilisateurs, statistiques globales.
+**Raisons.** Cette structure représente fidèlement les bandes dessinées (scénariste et dessinateur distincts), les films (réalisateur, acteurs) et les traductions, et permet des recherches précises (« tout ce que X a illustré »).
 
+### Question 5 : que faire quand Open Library renvoie des données incomplètes ou différentes de celles du catalogue ?
 
+**Décision : le catalogue local fait foi.**
 
-## 2026-11-13 — Règles métier (Niveau 2)
-
-- **Transactions et verrous** : chaque opération (emprunt, retour, prolongation, réservation, transfert)
-  s'exécute dans une transaction avec verrou pessimiste (`SELECT ... FOR UPDATE`) sur l'exemplaire.
-  Toutes les vérifications précèdent les modifications.
-- **Emprunt** : refusé si abonnement inactif, pénalités impayées, limite de prêts atteinte,
-  ou exemplaire indisponible / réservé pour un autre adhérent.
-- **Prolongation** : refusée si le prêt est en retard, si le maximum de la formule est atteint,
-  ou si des adhérents attendent le document. Le refus en cas de retard est un choix de ma part
-  (non imposé par l'énoncé).
-- **File d'attente** : premier arrivé, premier servi (date puis identifiant). Une réservation vise
-  une œuvre, avec une édition facultative.
-- **Retrait** : 7 jours ouvrés (lundi à vendredi, jours fériés non gérés), paramétrable.
-- **Pénalités** : retard = jours calendaires de retard × tarif de la formule ; perte = 100 MAD
-  forfaitaire ; dégradation = 30 MAD forfaitaire. Il n'y a pas de prix de remplacement en base, donc
-  les montants sont forfaitaires et les pénalités de retard ne sont pas plafonnées.
-- **Maintenance** : la commande `app:maintenance` expire les réservations et marque les retards ;
-  elle est prévue pour une exécution quotidienne (cron).
-- **Limite connue** : les notifications par e-mail ne sont pas implémentées (remplacées par l'état
-  visible dans l'espace adhérent).
-
-
-  ## 2026-11-13 — Sécurité (Niveau 3)
-
-- **Authentification** : formulaire de connexion Symfony avec protection CSRF, mots de passe hachés (`auto`).
-- **Rôles** : `ROLE_ADHERENT`, `ROLE_BIBLIOTHECAIRE`, `ROLE_ADMIN`. L'administrateur hérite du
-  bibliothécaire. Le bibliothécaire n'hérite pas d'adhérent : le personnel n'a pas de carte.
-- **Protection par chemin** : `/admin` et `/biblio` pour le personnel, `/mon-espace` pour les adhérents.
-- **Compte de démonstration** : mot de passe `password` (données de démo uniquement, jamais en production).
-
+1. **Création via ISBN** : l'import enregistre directement la fiche (source `OPEN_LIBRARY`). Si l'auteur, l'éditeur ou l'année manquent, elle est marquée « à vérifier » pour contrôle par un bibliothécaire.
+2. **ISBN déjà au catalogue** : jamais modifié. L'import le signale (`DEJA_PRESENT`) sans toucher aux données.
+3. **ISBN inconnu d'Open Library** ou fiche sans titre : rien n'est créé (`INTROUVABLE`) ; la fiche se saisit à la main dans le back-office.
+4. **Panne d'Open Library** (réseau, délai de 5 s dépassé, statut HTTP anormal, réponse illisible) : signalée (`ERREUR`), aucune écriture en base.
+5. **Import par lot** : maximum 10 ISBN ; chaque ISBN est traité indépendamment, un échec n'arrête pas les autres.
+6. **ISBN invalide** : la clé de contrôle (ISBN-10 et ISBN-13) est vérifiée avant tout appel réseau.
+7. **Couverture** : seule l'URL en `https` est stockée (non affichée dans cette version).
 
 ---
 
-## 3. Limites connues
+## 2. Règles métier retenues
 
-- **Import Open Library** : chaque import crée une nouvelle œuvre (le regroupement des éditions d'une même
-  œuvre se fait à la main dans le back-office) ; un même livre en ISBN-10 et en ISBN-13 serait vu comme deux
-  ISBN différents ; la couverture n'est pas affichée (seule l'URL est stockée).
-- **Prolongation gratuite** : l'énoncé n'impose aucun frais ; elle est refusée si le prêt est en retard,
-  si le maximum de la formule est atteint, ou si des adhérents attendent le document.
+### 2.1 Formules d'abonnement (données de démonstration, modifiables en base)
+
+| Formule | Prêts simultanés | Durée du prêt | Prolongations | Réservations | Pénalité par jour de retard |
+|---|---|---|---|---|---|
+| Standard | 3 | 21 jours | 1 | 2 | 0,50 MAD |
+| Premium | 8 | 28 jours | 2 | 5 | 0,50 MAD |
+| Jeune | 2 | 14 jours | 1 | 1 | 0,25 MAD |
+
+Les montants sont stockés en **centimes** (entiers), pour éviter les erreurs d'arrondi des nombres décimaux. Monnaie : MAD.
+
+### 2.2 Emprunt
+
+Un emprunt est refusé si :
+
+- l'abonnement est expiré ou inactif (le dernier jour de l'abonnement est inclus) ;
+- l'adhérent a au moins une pénalité impayée ;
+- il a atteint la limite de prêts simultanés de sa formule ;
+- l'exemplaire n'est pas disponible, ou est mis de côté pour un autre adhérent.
+
+Un adhérent dont la réservation est prête retire son exemplaire normalement : la réservation passe à `RETIREE`.
+
+### 2.3 Retour
+
+- La pénalité de retard = jours calendaires de retard × tarif de la formule. Le jour de l'échéance lui-même n'est pas en retard.
+- Un document peut être rendu dans l'autre médiathèque : son site actuel est mis à jour, son site d'attache ne change pas.
+- Document rendu abîmé : statut `ABIME` (retiré de la circulation) et pénalité forfaitaire de 30 MAD.
+- Document déclaré perdu : statut `PERDU` et pénalité forfaitaire de 100 MAD (il n'y a pas de prix de remplacement en base).
+- Au retour, la file d'attente est servie : le premier adhérent dont la demande correspond reçoit l'exemplaire (mis de côté, ou transfert si le site de retrait diffère).
+
+### 2.4 Prolongation
+
+- **Gratuite** : l'énoncé n'impose aucun frais.
+- Refusée si le prêt est en retard, si le maximum de la formule est atteint, si l'abonnement n'est plus actif, ou **si des adhérents attendent le document** (règle de l'énoncé).
+- Elle repousse l'échéance d'une durée de prêt de la formule. Le refus pour retard est un choix de ma part, non imposé par l'énoncé.
+
+### 2.5 Réservation
+
+- Limite de réservations actives par formule ; une seule réservation active par œuvre et par adhérent ; abonnement actif requis.
+- File d'attente : premier arrivé, premier servi (date de création, puis identifiant pour départager).
+- Si un exemplaire est déjà disponible dans le réseau à la réservation, il est affecté immédiatement (mis de côté sur place, ou transfert).
+- Une réservation visant une édition précise ne reçoit jamais un exemplaire d'une autre édition.
+
+### 2.6 États
+
+- `Exemplaire` : `DISPONIBLE`, `EMPRUNTE`, `RESERVE`, `EN_TRANSIT`, `PERDU`, `ABIME`, `RETIRE` (ce dernier est prévu pour le désherbage, sans règle associée pour l'instant).
+- `Pret` : `EN_COURS`, `RENDU`, `EN_RETARD`, `PERDU`. Le passage en `EN_RETARD` est fait par `app:maintenance`.
+- `Reservation` : `EN_ATTENTE`, `DISPONIBLE`, `RETIREE`, `ANNULEE`, `EXPIREE`.
+
+---
+
+## 3. Décisions techniques
+
+### 3.1 Stack
+
+- **Symfony 7.4** : version LTS.
+- **MySQL 8**, imposé par l'énoncé. Symfony génère du PostgreSQL par défaut : remplacé dès le premier jour.
+- **Doctrine ORM et migrations versionnées** : le schéma se reconstruit de zéro avec `doctrine:migrations:migrate` (vérifié sur un clone propre).
+- **EasyAdmin 5** : back-office du Niveau 1. Les champs énumérés et les associations sont déclarés explicitement dans chaque contrôleur : l'auto-détection affichait les énumérations PHP comme du texte et plantait.
+
+### 3.2 Services, transactions et concurrence
+
+- Les règles vivent dans `PretService`, `ReservationService`, `TransfertService` et `ImportEditionService`. Les contrôleurs lisent la requête, appellent un service testé et affichent le résultat ou le refus.
+- Chaque opération s'exécute dans une **transaction** avec un **verrou pessimiste** (`SELECT ... FOR UPDATE`) sur l'exemplaire : si deux guichets visent le même exemplaire, le second attend puis voit le nouveau statut et est refusé.
+- L'exemplaire porte aussi une colonne `version` (verrou optimiste Doctrine) qui détecte une modification concurrente.
+- Toutes les vérifications précèdent les modifications : un refus ne laisse rien à moitié fait.
+- Une aide `Transactionnel` remplace `wrapInTransaction()` : en cas d'exception celle-ci **ferme** l'EntityManager, ce qui empêcherait d'afficher une erreur propre ou de continuer un lot.
+- Les services ne lisent jamais l'heure eux-mêmes : la date est un paramètre (`$maintenant`), ce qui rend les tests déterministes.
+
+### 3.3 Sécurité (Niveau 3)
+
+- Connexion par formulaire avec jeton CSRF ; mots de passe hachés (`auto`).
+- Rôles `ROLE_ADHERENT`, `ROLE_BIBLIOTHECAIRE`, `ROLE_ADMIN`. L'administrateur hérite du bibliothécaire ; le bibliothécaire n'hérite pas d'adhérent (le personnel n'a pas de carte).
+- Protection par chemin : `/admin` et `/biblio` pour le personnel, `/mon-espace` pour les adhérents.
+- Un adhérent ne peut agir que sur **ses propres** prêts et réservations (contrôle de propriété dans le contrôleur) ; chaque action POST porte un jeton CSRF.
+- Séparation des comptes (`Utilisateur`) et des fiches (`Adherent`) : le personnel a un compte sans carte, et un adhérent peut être inscrit au guichet sans compte en ligne.
+- Nuance assumée : `/admin` est ouvert aux bibliothécaires comme aux administrateurs ; il n'y a pas de séparation de droits plus fine dans le back-office.
+
+### 3.4 Tests
+
+- 85 tests PHPUnit : calendrier, règle d'abonnement, validation d'ISBN (tests unitaires) ; prêts, retours, prolongations, réservations, transferts, import (tests d'intégration sur MySQL) ; contrôle d'accès et catalogue (tests fonctionnels).
+- Base dédiée `mediatheque_test` ; `dama/doctrine-test-bundle` annule chaque test (transaction), donc chaque test part d'une base vide.
+- Open Library est simulé (`MockHttpClient`) : tests rapides, déterministes, sans réseau.
+- Un test a révélé un vrai défaut : le dernier jour d'un abonnement était refusé, car la date de fin (minuit) était comparée à l'heure courante. Corrigé en comparant des jours.
+
+### 3.5 Livraison (Niveau 5)
+
+- `docker compose up --build` construit l'image (PHP 8.2 + Apache), démarre MySQL 8, applique les migrations et charge les données de démonstration.
+- `app:demo-data` ne charge les fixtures **que si la base est vide** : elles vident les tables, un redémarrage ne doit jamais effacer des données.
+- Le conteneur tourne en `APP_ENV=dev` : choix assumé pour une démonstration locale (assets servis à la volée, fixtures disponibles). Ce n'est pas une configuration de production ; `INSTALL.md` le dit.
+- Le port MySQL n'est pas publié par défaut, pour éviter les conflits avec un MySQL local (rencontré : un MySQL sous WSL interceptait le port 3306).
+- `app:maintenance` s'exécute toutes les heures dans le conteneur.
+- Vérifié sur un clone propre du dépôt, avec une base vide.
+
+---
+
+## 4. Journal daté
+
+| Date | Décision ou événement |
+|---|---|
+| 2026-11-11 | **Cadrage.** Sujet 4 retenu : règles claires et testables, API Open Library sans clé, délai court. Dépôt public, squelette Symfony 7.4, PostgreSQL remplacé par MySQL 8, extension `pdo_mysql` activée. |
+| 2026-11-12 | **Modèle.** 13 entités et énumérations, vocabulaire français aligné entre code et documents, migrations, données de démonstration (Faker, graine fixe), back-office EasyAdmin. Plantage des listes à champ énuméré corrigé par des champs déclarés explicitement. Conflit de port 3306 avec un MySQL sous WSL diagnostiqué. |
+| 2026-11-13 | **Règles métier.** Services de prêt, réservation et transfert avec transactions et verrous ; commande de maintenance ; tests. Défaut sur le dernier jour d'abonnement corrigé après un test rouge. |
+| 2026-11-14 | **Produit.** Sécurité et rôles, catalogue public, espace adhérent, guichet. Import Open Library par ISBN (validation, tolérance aux pannes, tests avec client simulé). Environnement Docker, commande `app:demo-data`, `INSTALL.md`. |
+| 2026-11-15 | **Finalisation.** Installation vérifiée sur un clone propre ; README et documents alignés sur le code ; note conceptuelle ; traces d'usage de l'IA. |
+
+---
+
+## 5. Limites connues
+
+- **Notifications** : pas d'e-mail ; l'état des réservations est visible dans l'espace adhérent.
 - **Jours ouvrés** : seuls le samedi et le dimanche sont exclus ; les jours fériés ne sont pas gérés.
-- **Notifications** : pas d'envoi d'e-mail ; l'état des réservations est visible dans l'espace adhérent.
-- **Pénalités** : montants forfaitaires pour un document perdu (100 MAD) ou abîmé (30 MAD), faute de prix de
-  remplacement en base ; les pénalités de retard ne sont pas plafonnées. Le paiement est enregistré
-  manuellement au guichet.
-- **Tests de concurrence** : le verrou `SELECT ... FOR UPDATE` empêche deux prêts simultanés du même
-  exemplaire, mais les tests exécutent les opérations l'une après l'autre ; un test avec deux connexions
-  en parallèle reste à écrire.
-- **Back-office** : le CRUD des comptes utilisateurs n'est pas fourni (création par fixtures).
-
-## 2026-11-14 — Livraison (Niveau 5)
-
-- **Une commande** : `docker compose up --build` construit l'image (PHP 8.2 + Apache), démarre MySQL 8,
-  applique les migrations et charge les données de démonstration.
-- **Données de démonstration protégées** : `app:demo-data` ne charge les fixtures que si la base est vide,
-  car elles vident les tables ; un redémarrage ne détruit donc jamais de données.
-- **Environnement `dev` dans le conteneur** : choix assumé pour une démonstration (assets servis à la volée,
-  outil de chargement des fixtures disponible). Ce n'est pas une configuration de production ; cela
-  est signalé dans `INSTALL.md`.
-- **Port MySQL non publié** par défaut, pour éviter les conflits avec un MySQL local (rencontré pendant le
-  développement : un MySQL sous WSL interceptait le port 3306).
-- **Maintenance planifiée** : `app:maintenance` s'exécute toutes les heures dans le conteneur
-  (expiration des réservations, prêts en retard).
+- **Pénalités** : montants forfaitaires pour un document perdu (100 MAD) ou abîmé (30 MAD) ; les pénalités de retard ne sont pas plafonnées ; le paiement est enregistré à la main au guichet.
+- **Concurrence** : le verrou `SELECT ... FOR UPDATE` empêche deux prêts simultanés du même exemplaire, mais les tests exécutent les opérations l'une après l'autre ; un test avec deux connexions réellement parallèles reste à écrire.
+- **Import Open Library** : chaque import crée une nouvelle œuvre (le regroupement des éditions d'une même œuvre se fait à la main) ; un même livre en ISBN-10 et en ISBN-13 serait vu comme deux ISBN différents ; la couverture n'est pas affichée.
+- **Réservations** : par œuvre avec édition facultative ; pas de priorité selon la formule d'abonnement.
+- **Back-office** : pas de gestion des comptes utilisateurs (créés par les données de démonstration) ; pas de tableau de bord statistique, les listes du guichet (retards, pénalités, transferts) couvrent le besoin opérationnel.
+- **Docker** : image en mode `dev`, adaptée à la démonstration et non à la production.
